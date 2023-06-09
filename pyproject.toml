@@ -15,6 +15,11 @@ dependencies = [
     "einops>=0.6.1",
     "positional-encodings[pytorch]>=6.0.1",
     "hydra-core>=1.3.2",
+    "torchvision>=0.15.2",
+    "av>=10.0.0",
 ]
 requires-python = ">=3.10"
 license = {text = "MIT"}
+
+[tool.setuptools]
+packages = ["video_pretrain"]

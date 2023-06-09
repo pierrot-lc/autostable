@@ -63,8 +63,6 @@ class UViT(nn.Module):
         Args:
             images: Input images.
                 Shape of [batch_size, n_channels, image_size, image_size].
-            conditionals: Input conditionals.
-                Shape of [batch_size, n_conditionals, hidden_size].
 
         ---
         Returns:

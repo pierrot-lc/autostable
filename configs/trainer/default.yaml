@@ -1,0 +1,4 @@
+---
+batch_size: 128
+n_batches: 100
+num_workers: 0
