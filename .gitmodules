@@ -1,0 +1,3 @@
+[submodule "vicreg-loss"]
+	path = vicreg-loss
+	url = git@github.com:jolibrain/vicreg-loss.git

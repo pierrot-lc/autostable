@@ -1,0 +1,6 @@
+**/__pycache__/
+.venv/
+video_stable_pretraining.egg-info/
+outputs/
+wandb/
+.pdm-python
