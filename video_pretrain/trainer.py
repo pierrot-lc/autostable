@@ -81,7 +81,9 @@ class Trainer:
         }
         return loader_metrics
 
-    def launch_training(self, config: dict[str, Any], eval_every: int = 10):
+    def launch_training(
+        self, config: dict[str, Any], eval_every: int = 10, save_every: int = 10
+    ):
         self.model.to(self.device)
 
         for epoch_id in tqdm(range(self.n_epochs), desc="Epoch"):
@@ -90,3 +92,9 @@ class Trainer:
             if epoch_id % eval_every == 0:
                 train_metrics = self.evaluate(self.train_loader)
                 val_metrics = self.evaluate(self.val_loader)
+
+            if epoch_id % save_every == 0:
+                torch.save(
+                    self.model.state_dict(),
+                    "model.pth",
+                )
