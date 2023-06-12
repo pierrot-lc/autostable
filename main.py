@@ -1,11 +1,13 @@
 from pathlib import Path
 
 import hydra
+import torch
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, RandomSampler, random_split
+from torchinfo import summary
 
-from video_pretrain import UViT, VideoDataset
+from video_pretrain import VICRegEncoder, VideoDataset
 
 
 def init_dataloaders(config: DictConfig) -> tuple[DataLoader, DataLoader]:
@@ -44,8 +46,8 @@ def init_dataloaders(config: DictConfig) -> tuple[DataLoader, DataLoader]:
     return train_loader, test_loader
 
 
-def init_model(config: DictConfig) -> UViT:
-    model = UViT(
+def init_model(config: DictConfig) -> VICRegEncoder:
+    model = VICRegEncoder(
         config.data.image_size,
         config.data.n_channels,
         config.model.n_tokens,
@@ -54,12 +56,33 @@ def init_model(config: DictConfig) -> UViT:
         config.model.ff_size,
         config.model.dropout,
         config.model.n_layers,
+        config.model.projected_size,
+        config.model.n_projected_layers,
     )
+
+    # Print model summary.
+    image_size = config.data.image_size
+    if isinstance(image_size, int):
+        image_size = (image_size, image_size)
+    summary(
+        model,
+        input_size=(
+            config.trainer.batch_size,
+            config.data.n_channels,
+            image_size[0],
+            image_size[1],
+        ),
+        device=config.device,
+    )
+
     return model
 
 
 @hydra.main(version_base="1.3", config_path="configs", config_name="default")
 def main(config: DictConfig):
+    if config.device == "auto":
+        config.device = "cuda" if torch.cuda.is_available() else "cpu"
+
     model = init_model(config)
     train_loader, test_loader = init_dataloaders(config)
 

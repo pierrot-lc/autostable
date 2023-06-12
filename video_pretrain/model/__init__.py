@@ -1,1 +1,1 @@
-from .uvit import UViT
+from .model import VICRegEncoder

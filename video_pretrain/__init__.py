@@ -1,2 +1,2 @@
 from .dataset import VideoDataset
-from .model import UViT
+from .model import VICRegEncoder
