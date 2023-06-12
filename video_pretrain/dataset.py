@@ -2,9 +2,12 @@ import random
 from pathlib import Path
 
 import torch
+import torchvision
 from torch.utils.data import Dataset
 from torchvision.io import VideoReader
 from torchvision.transforms.functional import resize
+
+torchvision.set_video_backend("pyav")
 
 
 class VideoDataset(Dataset):
@@ -50,7 +53,8 @@ class VideoDataset(Dataset):
         total_duration = reader.get_metadata()["video"]["duration"][0]
         durations = [random.uniform(0, total_duration) for _ in range(2)]
         frames = [
-            next(reader.seek(frame_duration))["data"] for frame_duration in durations
+            next(reader.seek(frame_duration, keyframes_only=True))["data"]
+            for frame_duration in durations
         ]
         frames = [resize(frame, self.image_size, antialias=True) for frame in frames]
         frames = [frame / 255 for frame in frames]

@@ -83,7 +83,8 @@ class FramesEncoder(nn.Module):
         tokens = self.backbone(tokens)
 
         # Token coordinates.
-        coords = einops.repeat(self.tok_coordinates, "n c -> b n c", b=tokens.shape[0])
+        coords = self.tok_coordinates.to(frames.device)
+        coords = einops.repeat(coords, "n c -> b n c", b=tokens.shape[0])
 
         return tokens, coords
 
