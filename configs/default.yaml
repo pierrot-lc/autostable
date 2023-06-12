@@ -4,6 +4,7 @@ defaults:
   - model: small
   - data: default
   - trainer: default
+  - loss: default
 
 seed: 0
 device: auto

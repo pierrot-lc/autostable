@@ -4,10 +4,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 from torchvision.io import VideoReader
+from torchvision.transforms.functional import resize
 
 
 class VideoDataset(Dataset):
-    def __init__(self, video_paths: list[Path]):
+    def __init__(self, video_paths: list[Path], image_size: list[int]):
         """Simple video dataset that loads a pair of images
         coming from the same video.
 
@@ -18,6 +19,7 @@ class VideoDataset(Dataset):
         """
         super().__init__()
         self.video_paths = video_paths
+        self.image_size = image_size
 
     def __len__(self) -> int:
         """Get the number of videos in the dataset.
@@ -50,15 +52,19 @@ class VideoDataset(Dataset):
         frames = [
             next(reader.seek(frame_duration))["data"] for frame_duration in durations
         ]
+        frames = [resize(frame, self.image_size, antialias=True) for frame in frames]
+        frames = [frame / 255 for frame in frames]
 
         return torch.stack(frames)
 
     @classmethod
-    def from_folder(cls, folder_path: Path) -> "VideoDataset":
+    def from_folder(
+        cls, folder_path: Path, image_size: tuple[int, int] | list[int]
+    ) -> "VideoDataset":
         """Read all videos from a folder and construct the dataset."""
         video_paths = [
             path
             for path in folder_path.iterdir()
             if path.suffix in [".mp4", ".avi", ".mov"]
         ]
-        return cls(video_paths)
+        return cls(video_paths, list(image_size))

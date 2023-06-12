@@ -1,0 +1,7 @@
+---
+num_matches: 10
+alpha: 0.75
+inv_coeff: 25.0
+var_coeff: 15.0
+cov_coeff: 1.0
+gamma: 1.0

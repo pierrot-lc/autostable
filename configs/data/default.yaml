@@ -1,5 +1,5 @@
 ---
 folder_path: "./data/DeepStab/unstable/"
 test_size: 0.1
-image_size: 64
+image_size: [180, 320]  # [height, width].
 n_channels: 3
