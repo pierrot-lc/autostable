@@ -61,9 +61,8 @@ class VICRegTrainer:
         for batch in tqdm(self.train_loader, desc="Training", leave=False):
             batch = batch.to(self.device)
             metrics = self.compute_metrics(batch)
-            loss = metrics["loss"]
             self.optimizer.zero_grad()
-            loss.backward()
+            metrics["loss"].backward()
             self.optimizer.step()
 
     @torch.no_grad()
@@ -81,20 +80,16 @@ class VICRegTrainer:
         }
         return loader_metrics
 
-    def launch_training(
-        self, config: dict[str, Any], eval_every: int = 10, save_every: int = 10
-    ):
+    def launch_training(self, config: dict[str, Any], eval_every: int = 10):
         self.model.to(self.device)
 
         for epoch_id in tqdm(range(self.n_epochs), desc="Epoch"):
             self.train_model()
 
             if epoch_id % eval_every == 0:
-                train_metrics = self.evaluate(self.train_loader)
-                val_metrics = self.evaluate(self.val_loader)
-
-            if epoch_id % save_every == 0:
-                torch.save(
-                    self.model.state_dict(),
-                    "model.pth",
-                )
+                for loader_type, loader in [
+                    ("train", self.train_loader),
+                    ("validation", self.val_loader),
+                ]:
+                    metrics = self.evaluate(loader)
+                torch.save(self.model.state_dict(), "encoder.pth")

@@ -4,9 +4,9 @@ The training is monitored using `Visdom`.
 """
 
 from collections import defaultdict
+from typing import Any
 
 import einops
-import numpy as np
 import torch
 from kornia.geometry import HomographyWarper
 from torch.nn.utils.clip_grad import clip_grad_norm_
@@ -42,7 +42,7 @@ class Trainer:
 
         self.homography_warper = HomographyWarper(image_size[0], image_size[1])
 
-    def compute_metrics(self, x: torch.Tensor) -> tuple:
+    def compute_metrics(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         """Do a batch-forward and compute relevant metrics.
 
         ---
@@ -57,125 +57,68 @@ class Trainer:
             images: Dictionary of some useful images to plot.
         """
         metrics = dict()
-        src = einops.rearrange(x, "b s c h w -> (b s) c h w")
+        batch_size = x.shape[0]
 
-        # Compute and apply homography
+        # Compute and apply homography.
         homography, _ = self.homography_model(x)
         homography = einops.rearrange(homography, "b s h w -> (b s) h w")
+        x = einops.rearrange(x, "b s c h w -> (b s) c h w")
+        with torch.no_grad():
+            src, _, _ = self.frames_encoder(x)  # Take the encoded frames.
         src_to_dest = self.homography_warper(src, homography)
 
-        # First image is its own reference.
-        # For the rest of the sequence, the reference is always the previous image.
-        y = einops.rearrange(src_to_dest, "(b s) c h w -> b s c h w", b=x.shape[0])
-        dest = self.loss_fn.randomly_select_any_dest(y)
-
-        dest = dest.detach()  # Do not adapt to the future.
+        # Select random destination frames.
+        y = einops.rearrange(src_to_dest, "(b s) c h w -> b s c h w", b=batch_size)
+        dest = HomographyLoss.randomly_select_any_dest(y)
+        dest = dest.detach()  # The gradient only pass through one element of the pairs.
         dest = einops.rearrange(dest, "b s c h w -> (b s) c h w")
 
-        # Compute loss
+        # Compute loss.
         metrics.update(self.loss_fn(src_to_dest, dest, homography))
 
-        # Store some images
-        images = {
-            "src": src.cpu(),
-            "dest": dest.cpu(),
-            "src_to_dest": torch.clamp(src_to_dest, 0, 1).cpu(),
-        }
-
-        return metrics["loss"], metrics, images
+        return metrics
 
     @torch.no_grad()
-    def eval_loader(self, loader: DataLoader):
-        self.homography_model.to(self.device)
-        self.loss_fn.to(self.device)
+    def evaluate(self, loader: DataLoader) -> dict[str, torch.Tensor]:
         self.homography_model.eval()
-        metrics = defaultdict(list)
+        loader_metrics = defaultdict(list)
 
-        for x in loader:
-            x = x.to(self.device)
-            _, m, _ = self.compute_metrics(x)
-            for name, value in m.items():
-                metrics[name].append(value.cpu().item())
-
-        return {name: np.mean(values) for name, values in metrics.items()}
-
-    @torch.no_grad()
-    def plot_eval(self):
-        for loader, is_train in zip(
-            [self.train_loader, self.test_loader], [True, False]
-        ):
-            # Lower the number of samples for fast evaluation.
-            num_samples = loader.sampler._num_samples
-            loader.sampler._num_samples = num_samples // 10
-
-            # Logs metrics.
-            metrics = self.eval_loader(loader)
+        for batch in loader:
+            batch = batch.to(self.device)
+            metrics = self.compute_metrics(batch)
             for name, value in metrics.items():
-                self.visdom.add_data(value, name, is_train)
+                loader_metrics[name].append(value.cpu().item())
 
-            # Put back the original number of samples.
-            loader.sampler._num_samples = num_samples
+        loader_metrics = {
+            key: torch.tensor(value).mean() for key, value in loader_metrics.items()
+        }
+        return loader_metrics
 
-            # Save model state if better.
-            if not is_train and self.best_loss > metrics["loss"]:
-                self.best_loss = metrics["loss"]
-                self.best_state_dict = self.homography_model.state_dict()
+    def train_model(self):
+        self.homography_model.train()
 
-            # Logs predictions.
-            x = next(iter(loader))
-            x = x.to(self.device)
-            _, _, images = self.compute_metrics(x)
+        for batch in tqdm(self.train_loader, desc="Batch", leave=False):
+            batch = batch.to(self.device)
+            metrics = self.compute_metrics(batch)
+            self.optimizer.zero_grad()
+            metrics["loss"].backward()
+            # Training an RNN leads to gradient vanishing and exploding problems.
+            clip_grad_norm_(self.homography_model.parameters(), 0.5)
+            self.optimizer.step()
 
-            image_id = torch.randint(0, len(images["src"]), (1,)).item()
-            image_id = int(image_id)
-            images = {k: i[image_id] for k, i in images.items()}  # Select images.
-
-            zeros_channel = torch.zeros_like(images["src"], device=images["src"].device)
-            src_red = torch.cat((images["src"], zeros_channel, zeros_channel), dim=0)
-            dest_green = torch.cat(
-                (zeros_channel, images["dest"], zeros_channel), dim=0
-            )
-            src_to_dest_white = torch.cat(
-                (images["src_to_dest"], images["src_to_dest"], images["src_to_dest"]),
-                dim=0,
-            )
-
-            images = torch.stack(
-                [
-                    src_red,
-                    dest_green,
-                    (src_to_dest_white + src_red) / 2,
-                    (dest_green + src_to_dest_white) / 2,
-                ],
-                dim=0,
-            ).cpu()  # Build tensor of images.
-            self.visdom.add_images(images, "(src, dest, diff_src, diff_dest)", is_train)
-
-        self.visdom.update()
-
-    def eval(self):
-        self.visdom.add_gradient_flow(self.homography_model)
-        self.plot_eval()
-        self.save_state()
-
-    def train(self):
+    def launch_training(self, config: dict[str, Any], eval_every: int = 10):
         self.homography_model.to(self.device)
+        self.frames_encoder.to(self.device)
         self.loss_fn.to(self.device)
-        self.best_loss = float("+inf")
+        self.frames_encoder.eval()
 
-        for _ in tqdm(range(self.train_config["n_epochs"]), position=0):
-            self.homography_model.train()
+        for epoch_id in tqdm(range(self.n_epochs), desc="Epoch"):
+            self.train_model()
 
-            for x in tqdm(self.train_loader, position=1):
-                x = x.to(self.device)
-                self.optimizer.zero_grad()
-
-                loss, _, _ = self.compute_metrics(x)
-
-                loss.backward()
-                clip_grad_norm_(
-                    self.homography_model.parameters(), 0.5
-                )  # Training an RNN leads to gradient vanishing and exploding problems.
-                self.optimizer.step()
-
-            self.eval()
+            if epoch_id % eval_every == 0:
+                for loader_type, loader in [
+                    ("train", self.train_loader),
+                    ("validation", self.val_loader),
+                ]:
+                    metrics = self.evaluate(loader)
+                torch.save(self.homography_model.state_dict(), "homography.pth")
