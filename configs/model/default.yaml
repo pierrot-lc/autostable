@@ -1,9 +1,6 @@
 ---
 n_tokens: [9, 16]  # [height, width]
-hidden_size: 32
-n_heads: 2
-ff_size: 128
-dropout: 0.1
-n_layers: 4
-projected_size: 128
+hidden_size: 12
+n_layers: 5
+projected_size: 24
 n_projected_layers: 1

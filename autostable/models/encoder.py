@@ -4,21 +4,24 @@ import einops
 import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
-from positional_encodings.torch_encodings import PositionalEncoding2D, Summer
 
 from .projector import Projector
 
 
 class FramesEncoder(nn.Module):
+    """Soft encoder of the input frames.
+    The encoding is of the same shape of the input frames.
+
+    It outputs a set of tokens representing patches of the encoded frames,
+    used for the VICRegL loss.
+    """
+
     def __init__(
         self,
         image_size: int | tuple[int, int],
         n_channels: int,
         n_tokens: int | tuple[int, int],
         hidden_size: int,
-        n_heads: int,
-        ff_size: int,
-        dropout: float,
         n_layers: int,
     ):
         super().__init__()
@@ -38,31 +41,43 @@ class FramesEncoder(nn.Module):
             image_size[1] // n_tokens[1],
         )
 
-        self.tok_coordinates = FramesEncoder.token_coordinates(n_tokens)
-        self.patch_embedding = nn.Sequential(
+        self.project_input = nn.Sequential(
             nn.Conv2d(
                 in_channels=n_channels,
                 out_channels=hidden_size,
-                kernel_size=kernel_size,
-                stride=kernel_size,
+                kernel_size=5,
+                padding="same",
             ),
             nn.GELU(),
-            nn.LayerNorm([hidden_size, n_tokens[0], n_tokens[1]]),
-            Rearrange("b c h w -> b h w c"),
+            nn.BatchNorm2d(hidden_size),
         )
-        self.positional_encoding = nn.Sequential(
-            Summer(PositionalEncoding2D(hidden_size)),
-            Rearrange("b h w c -> b (h w) c"),
+        self.encoder = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv2d(
+                        hidden_size,
+                        hidden_size,
+                        kernel_size=5,
+                        padding="same",
+                    ),
+                    nn.GELU(),
+                    nn.BatchNorm2d(hidden_size),
+                )
+                for _ in range(n_layers)
+            ]
         )
-        self.backbone = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                hidden_size, n_heads, ff_size, dropout, batch_first=True
-            ),
-            n_layers,
+        self.tok_coordinates = FramesEncoder.token_coordinates(n_tokens)
+        self.patchify = nn.Sequential(
+            nn.MaxPool2d(kernel_size=kernel_size, stride=kernel_size),
+            Rearrange("b c h w -> b (h w) c"),
         )
 
-    def forward(self, frames: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, frames: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Encodes the input frames.
+        Provides a tokenized version of the frames along with their respective
+        coordinates in the frames. Used for the VICRegL loss.
 
         ---
         Args:
@@ -71,24 +86,26 @@ class FramesEncoder(nn.Module):
 
         ---
         Returns:
-            x: Token embeddings.
+            frames: Encoded frames.
+                Shape of [batch_size, hidden_size, image_size, image_size].
+            tokens: Token embeddings.
                 Shape of [batch_size, n_tokens[0] x n_tokens[1], hidden_size].
             coords: The absolute position of each token.
                 Shape of [batch_size, n_tokens[0] x n_tokens[1], 2].
         """
+        # Encode the frames.
+        frames = self.project_input(frames)
+        for res_layer in self.encoder:
+            frames = res_layer(frames) + frames
+
         # Create the input tokens.
-        # To shape of [batch_size, n_tokens, n_tokens, hidden_size].
-        tokens = self.patch_embedding(frames)
-        # To shape of [batch_size, n_tokens x n_tokens, hidden_size].
-        tokens = self.positional_encoding(tokens)
-        # Main ViT backbone.
-        tokens = self.backbone(tokens)
+        tokens = self.patchify(frames)
 
         # Token coordinates.
         coords = self.tok_coordinates.to(frames.device)
         coords = einops.repeat(coords, "n c -> b n c", b=tokens.shape[0])
 
-        return tokens, coords
+        return frames, tokens, coords
 
     @staticmethod
     def token_coordinates(n_tokens: tuple[int, int]) -> torch.Tensor:
@@ -111,11 +128,6 @@ class FramesEncoder(nn.Module):
         coordinates = einops.rearrange(coordinates, "h w c -> (h w) c")
         return coordinates
 
-    @staticmethod
-    def tokens_to_image(tokens: torch.Tensor) -> torch.Tensor:
-        """Converts the tokens back to an image."""
-        pass
-
 
 class VICRegEncoder(nn.Module):
     def __init__(
@@ -124,9 +136,6 @@ class VICRegEncoder(nn.Module):
         n_channels: int,
         n_tokens: int | tuple[int, int],
         hidden_size: int,
-        n_heads: int,
-        ff_size: int,
-        dropout: float,
         n_layers: int,
         projected_size: int,
         n_projected_layers: int,
@@ -138,9 +147,6 @@ class VICRegEncoder(nn.Module):
             n_channels=n_channels,
             n_tokens=n_tokens,
             hidden_size=hidden_size,
-            n_heads=n_heads,
-            ff_size=ff_size,
-            dropout=dropout,
             n_layers=n_layers,
         )
 
@@ -169,7 +175,7 @@ class VICRegEncoder(nn.Module):
             x_coords: Absolute coordinates of the tokens.
                 Shape of [batch_size, n_tokens[0] x n_tokens[1], 2].
         """
-        x, x_coords = self.encoder(x)
+        _, x, x_coords = self.encoder(x)
         x_loc = self.projector(x)
         x_glob = self.projector(x.mean(dim=1))
         return x_loc, x_glob, x_coords
