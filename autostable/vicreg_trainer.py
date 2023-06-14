@@ -11,7 +11,7 @@ from vicreg_loss import VICRegLLoss
 from .model import VICRegEncoder
 
 
-class Trainer:
+class VICRegTrainer:
     def __init__(
         self,
         model: VICRegEncoder,

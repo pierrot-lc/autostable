@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, RandomSampler, random_split
 from torchinfo import summary
 from vicreg_loss import VICRegLLoss
 
-from video_pretrain import Trainer, VICRegEncoder, VideoDataset
+from autostable import SampleDataset, VICRegEncoder, VICRegTrainer
 
 
 def init_dataloaders(config: DictConfig) -> tuple[DataLoader, DataLoader]:
@@ -19,7 +19,7 @@ def init_dataloaders(config: DictConfig) -> tuple[DataLoader, DataLoader]:
     n_batches = config.trainer.n_batches
 
     # Create datasets.
-    dataset = VideoDataset.from_folder(Path(folder_path), config.data.image_size)
+    dataset = SampleDataset.from_folder(Path(folder_path), config.data.image_size)
     train_set, val_set = random_split(dataset, lengths=[1 - test_size, test_size])
 
     # Create data loaders.
@@ -95,8 +95,8 @@ def init_trainer(
     train_loader: DataLoader,
     val_loader: DataLoader,
     config: DictConfig,
-) -> Trainer:
-    return Trainer(
+) -> VICRegTrainer:
+    return VICRegTrainer(
         model,
         loss_fn,
         optimizer,

@@ -1,8 +1,8 @@
 
 [project]
-name = "video-stable-pretraining"
+name = "video-autostable"
 version = "1.0.0"
-description = "Train a model to capture stable and unstable features from videos using VICRegL."
+description = "Train a model to stabilize videos in an online and self supervised fashion."
 authors = [
     {name = "Pierre Pereira", email = "pierre.pereira@jolibrain.com"},
 ]

@@ -10,15 +10,17 @@ from torchvision.transforms.functional import resize
 torchvision.set_video_backend("pyav")
 
 
-class VideoDataset(Dataset):
+class SampleDataset(Dataset):
     def __init__(self, video_paths: list[Path], image_size: list[int]):
-        """Simple video dataset that loads a pair of images
+        """Video dataset that loads a pair of images
         coming from the same video.
 
         ---
         Args:
             video_paths: List of video paths, from which
                 frames will be sampled.
+            image_size: Size of the images to return.
+                List of [height, width].
         """
         super().__init__()
         self.video_paths = video_paths
@@ -45,7 +47,6 @@ class VideoDataset(Dataset):
             A pair of images from the same video.
                 Shape of [2, n_channels, height, width].
         """
-        # Sample with replacement the images from the same video.
         video_path = self.video_paths[index]
         reader = VideoReader(str(video_path), stream="video")
 
@@ -64,7 +65,7 @@ class VideoDataset(Dataset):
     @classmethod
     def from_folder(
         cls, folder_path: Path, image_size: tuple[int, int] | list[int]
-    ) -> "VideoDataset":
+    ) -> "SampleDataset":
         """Read all videos from a folder and construct the dataset."""
         video_paths = [
             path
