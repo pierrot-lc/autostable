@@ -1,0 +1,8 @@
+---
+resnet:
+  name: resnet18
+  pretrained: true
+hidden_size: 128
+n_lstm_layers: 3
+translation_only: true
+identity_penalty: 0

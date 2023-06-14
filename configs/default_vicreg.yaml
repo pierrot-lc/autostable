@@ -1,0 +1,15 @@
+---
+defaults:
+  - _self_
+  - encoder: default
+  - data: default
+  - trainer: vicreg
+  - vicreg: default
+
+seed: 0
+device: auto
+mode: online
+
+hydra:
+  job:
+    chdir: true

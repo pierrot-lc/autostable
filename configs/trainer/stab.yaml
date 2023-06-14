@@ -1,6 +1,6 @@
 ---
 learning_rate: 1.0e-3
-batch_size: 128
+batch_size: 6
 n_batches: 100
 n_epochs: 10
 num_workers: 0

@@ -52,11 +52,11 @@ def init_model(config: DictConfig) -> VICRegEncoder:
     model = VICRegEncoder(
         config.data.image_size,
         config.data.n_channels,
-        config.model.n_tokens,
-        config.model.hidden_size,
-        config.model.n_layers,
-        config.model.projected_size,
-        config.model.n_projected_layers,
+        config.encoder.n_tokens,
+        config.encoder.hidden_size,
+        config.encoder.n_layers,
+        config.encoder.projected_size,
+        config.encoder.n_projected_layers,
     )
 
     # Print model summary.
@@ -76,12 +76,12 @@ def init_model(config: DictConfig) -> VICRegEncoder:
 
 def init_loss(config: DictConfig) -> VICRegLLoss:
     return VICRegLLoss(
-        config.loss.num_matches,
-        config.loss.alpha,
-        config.loss.inv_coeff,
-        config.loss.var_coeff,
-        config.loss.cov_coeff,
-        config.loss.gamma,
+        config.vicreg.num_matches,
+        config.vicreg.alpha,
+        config.vicreg.inv_coeff,
+        config.vicreg.var_coeff,
+        config.vicreg.cov_coeff,
+        config.vicreg.gamma,
     )
 
 
@@ -104,15 +104,15 @@ def init_trainer(
     )
 
 
-@hydra.main(version_base="1.3", config_path="configs", config_name="default")
+@hydra.main(version_base="1.3", config_path="configs", config_name="default_vicreg")
 def main(config: DictConfig):
     if config.device == "auto":
         config.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if isinstance(config.data.image_size, int):
         config.data.image_size = (config.data.image_size, config.data.image_size)
-    if isinstance(config.model.n_tokens, int):
-        config.model.n_tokens = (config.model.n_tokens, config.model.n_tokens)
+    if isinstance(config.encoder.n_tokens, int):
+        config.encoder.n_tokens = (config.encoder.n_tokens, config.encoder.n_tokens)
 
     model = init_model(config)
     train_loader, val_loader = init_dataloaders(config)

@@ -18,7 +18,7 @@ from .homography_loss import HomographyLoss
 from .models import FramesEncoder, HomographyModel
 
 
-class Trainer:
+class StabTrainer:
     def __init__(
         self,
         homography_model: HomographyModel,
