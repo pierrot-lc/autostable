@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from vicreg_loss import VICRegLLoss
 
-from .model import VICRegEncoder
+from .models import VICRegEncoder
 
 
 class VICRegTrainer:
@@ -30,7 +30,7 @@ class VICRegTrainer:
         self.n_epochs = n_epochs
         self.device = device
 
-    def compute_loss(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+    def compute_metrics(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
         """
 
         ---
@@ -60,7 +60,7 @@ class VICRegTrainer:
         self.model.train()
         for batch in tqdm(self.train_loader, desc="Training", leave=False):
             batch = batch.to(self.device)
-            metrics = self.compute_loss(batch)
+            metrics = self.compute_metrics(batch)
             loss = metrics["loss"]
             self.optimizer.zero_grad()
             loss.backward()
@@ -72,7 +72,7 @@ class VICRegTrainer:
         loader_metrics = defaultdict(list)
         for batch in tqdm(loader, desc="Evaluating", leave=False):
             batch = batch.to(self.device)
-            metrics = self.compute_loss(batch)
+            metrics = self.compute_metrics(batch)
             for key, value in metrics.items():
                 loader_metrics[key].append(value.cpu().item())
 

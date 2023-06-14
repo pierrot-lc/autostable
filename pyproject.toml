@@ -17,9 +17,10 @@ dependencies = [
     "hydra-core>=1.3.2",
     "torchvision>=0.15.2",
     "av>=10.0.0",
+    "kornia>=0.6.12",
 ]
 requires-python = ">=3.10"
 license = {text = "MIT"}
 
 [tool.setuptools]
-packages = ["video_pretrain"]
+packages = ["autostable"]
