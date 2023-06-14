@@ -9,7 +9,6 @@ authors = [
 dependencies = [
     "vicreg-loss @ file:///${PROJECT_ROOT}/vicreg-loss",
     "torch>=2.0.1",
-    "wandb>=0.15.4",
     "tqdm>=4.65.0",
     "torchinfo>=1.8.0",
     "einops>=0.6.1",
