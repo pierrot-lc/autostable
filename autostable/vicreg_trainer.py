@@ -1,8 +1,9 @@
 from collections import defaultdict
-from typing import Any
 
 import einops
 import torch
+from omegaconf import DictConfig
+from aim import Run
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -80,8 +81,10 @@ class VICRegTrainer:
         }
         return loader_metrics
 
-    def launch_training(self, config: dict[str, Any], eval_every: int = 10):
+    def launch_training(self, config: DictConfig, eval_every: int = 10):
         self.model.to(self.device)
+        run = Run(repo=config.aim.repo, experiment=config.aim.experiment)
+        run["hparams"] = config
 
         for epoch_id in tqdm(range(self.n_epochs), desc="Epoch"):
             self.train_model()
@@ -92,4 +95,10 @@ class VICRegTrainer:
                     ("validation", self.val_loader),
                 ]:
                     metrics = self.evaluate(loader)
+                    for name, value in metrics.items():
+                        run.track(
+                            value.cpu().item(),
+                            name,
+                            context={"split": loader_type},
+                        )
                 torch.save(self.model.state_dict(), "encoder.pth")

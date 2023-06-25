@@ -3,7 +3,7 @@ from pathlib import Path
 import hydra
 import torch
 from hydra.utils import to_absolute_path
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader, RandomSampler, random_split
 from torchinfo import summary
@@ -120,7 +120,7 @@ def main(config: DictConfig):
     optimizer = AdamW(model.parameters(), lr=config.trainer.learning_rate)
     trainer = init_trainer(model, loss_fn, optimizer, train_loader, val_loader, config)
 
-    trainer.launch_training(OmegaConf.to_container(config, resolve=True))
+    trainer.launch_training(config)
 
 
 if __name__ == "__main__":

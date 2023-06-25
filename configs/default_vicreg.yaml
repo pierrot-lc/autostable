@@ -10,6 +10,10 @@ seed: 0
 device: auto
 mode: online
 
+aim:
+  repo: aim://192.168.1.95:53800
+  experiment: autostable-vicreg
+
 hydra:
   job:
     chdir: true
